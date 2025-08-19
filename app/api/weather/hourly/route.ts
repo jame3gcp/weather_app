@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCacheKey, memoryCache } from '@/lib/cache';
+import getConfig from 'next/config';
 
-// 환경 변수 (실제 구현 시 .env 파일에서 가져와야 함)
-const WEATHER_API_BASE = process.env.WEATHER_API_BASE || 'https://api.openweathermap.org/data/3.0';
-const WEATHER_API_KEY = process.env.WEATHER_API_KEY || 'YOUR_API_KEY';
-const CACHE_TTL_SECONDS = parseInt(process.env.CACHE_TTL_SECONDS || '600', 10);
+// 환경 변수 (Next.js 15 호환 방식)
+const { serverRuntimeConfig } = getConfig() || {};
+const WEATHER_API_BASE = serverRuntimeConfig?.WEATHER_API_BASE || 'https://api.openweathermap.org/data/2.5';
+const WEATHER_API_KEY = serverRuntimeConfig?.WEATHER_API_KEY;
+const CACHE_TTL_SECONDS = parseInt(serverRuntimeConfig?.CACHE_TTL_SECONDS || '600', 10);
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,37 +37,97 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(cachedData);
     }
     
-    // OpenWeather API 호출 (실제 구현 필요)
-    const apiUrl = `${WEATHER_API_BASE}/onecall?lat=${lat}&lon=${lon}&units=${units}&lang=${lang}&appid=${WEATHER_API_KEY}&exclude=minutely,current,daily,alerts`;
-    
-    // 실제 API 호출 대신 임시 데이터 생성 (실제 구현 시 수정 필요)
-    const mockData = Array.from({ length: validHours }, (_, i) => {
-      const time = new Date();
-      time.setHours(time.getHours() + i);
+    // API 키 확인
+    if (!WEATHER_API_KEY || WEATHER_API_KEY.length < 10) {
+      console.warn('OpenWeatherMap API 키가 설정되지 않았습니다. Mock 데이터를 반환합니다.');
       
-      return {
-        time: time.toISOString(),
-        temp: 20 + Math.random() * 10, // 20~30도 사이 랜덤 온도
-        pop: Math.random() * 0.5, // 0~50% 강수확률
-        icon: ['01d', '02d', '03d', '04d', '10d'][Math.floor(Math.random() * 5)], // 랜덤 아이콘
-        condition: ['맑음', '구름 조금', '구름 많음', '흐림', '비'][Math.floor(Math.random() * 5)] // 랜덤 날씨 상태
+      // API 키가 없을 때 임시 데이터 반환 (개발용)
+      const mockData = Array.from({ length: validHours }, (_, i) => {
+        const time = new Date();
+        time.setHours(time.getHours() + i);
+        
+        return {
+          time: time.toISOString(),
+          temp: 20 + Math.random() * 10, // 20~30도 사이 랜덤 온도
+          pop: Math.random() * 0.5, // 0~50% 강수확률
+          icon: ['01d', '02d', '03d', '04d', '10d'][Math.floor(Math.random() * 5)], // 랜덤 아이콘
+          condition: ['맑음', '구름 조금', '구름 많음', '흐림', '비'][Math.floor(Math.random() * 5)] // 랜덤 날씨 상태
+        };
+      });
+      
+      const mockResponse = {
+        location: {
+          name: 'Seoul',
+          lat: parseFloat(lat),
+          lon: parseFloat(lon)
+        },
+        updatedAt: new Date().toISOString(),
+        data: mockData
       };
-    });
+      
+      // 캐시에 저장
+      memoryCache.set(cacheKey, mockResponse, CACHE_TTL_SECONDS);
+      return NextResponse.json(mockResponse);
+    }
     
-    const mockResponse = {
-      location: {
-        name: 'Seoul',
-        lat: parseFloat(lat),
-        lon: parseFloat(lon)
-      },
-      updatedAt: new Date().toISOString(),
-      data: mockData
-    };
+    try {
+      // 5 Day / 3 Hour Forecast API 사용
+      const apiUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=${units}&lang=${lang}&appid=${WEATHER_API_KEY}`;
+      
+      console.log(`OpenWeatherMap Hourly API 호출: ${apiUrl.replace(WEATHER_API_KEY, 'API_KEY_HIDDEN')}`);
+      
+      const apiResponse = await fetch(apiUrl);
+      
+      if (!apiResponse.ok) {
+        throw new Error(`OpenWeatherMap API 오류: ${apiResponse.status} ${apiResponse.statusText}`);
+      }
+      
+      const apiData = await apiResponse.json();
+      
+      // API 응답을 우리 형식으로 변환 (3시간 간격 데이터를 1시간 간격으로 보간)
+      const transformedData = [];
+      const list = apiData.list || [];
+      
+      for (let i = 0; i < Math.min(validHours, list.length); i++) {
+        const item = list[i];
+        transformedData.push({
+          time: item.dt_txt,
+          temp: item.main.temp,
+          pop: item.pop, // 강수확률 (0~1)
+          icon: item.weather[0].icon,
+          condition: item.weather[0].main
+        });
+      }
+      
+      const transformedResponse = {
+        location: {
+          name: apiData.city?.name || 'Seoul',
+          lat: parseFloat(lat),
+          lon: parseFloat(lon)
+        },
+        updatedAt: new Date().toISOString(),
+        data: transformedData
+      };
+      
+      // 캐시에 저장
+      memoryCache.set(cacheKey, transformedResponse, CACHE_TTL_SECONDS);
+      
+      return NextResponse.json(transformedResponse);
+      
+    } catch (apiError) {
+      console.error('OpenWeatherMap Hourly API 호출 실패:', apiError);
+      
+      // API 호출 실패 시 에러 응답
+      return NextResponse.json(
+        { 
+          code: 'API_ERROR', 
+          message: 'OpenWeatherMap Hourly API 호출에 실패했습니다. API 키를 확인해주세요.',
+          error: apiError instanceof Error ? apiError.message : 'Unknown error'
+        },
+        { status: 502 }
+      );
+    }
     
-    // 캐시에 저장
-    memoryCache.set(cacheKey, mockResponse, CACHE_TTL_SECONDS);
-    
-    return NextResponse.json(mockResponse);
   } catch (error) {
     console.error('시간별 예보 조회 오류:', error);
     

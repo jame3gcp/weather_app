@@ -72,10 +72,33 @@
   ```
 
 ## 8. 환경변수(.env)
-- `WEATHER_API_BASE`  
-- `WEATHER_API_KEY`  
-- `DEFAULT_LOCALE=ko`  
-- `CACHE_TTL_SECONDS=600`
+### 8.1 필수 설정
+실제 날씨 데이터를 가져오려면 OpenWeatherMap API 키가 필요합니다.
+
+1. **OpenWeatherMap API 키 발급**
+   - [OpenWeatherMap](https://openweathermap.org/) 회원가입
+   - API Keys 탭에서 무료 API 키 발급
+   - One Call API 3.0 사용 시 "One Call by Call" 구독 필요 (1,000회/일 무료)
+
+2. **환경변수 파일 생성**
+   ```bash
+   # 프로젝트 루트에 .env.local 파일 생성
+   WEATHER_API_BASE=https://api.openweathermap.org/data/3.0
+   WEATHER_API_KEY=여기에_발급받은_API_키_입력
+   CACHE_TTL_SECONDS=600
+   DEFAULT_LOCALE=ko
+   ```
+
+3. **주의사항**
+   - `.env.local` 파일은 `.gitignore`에 포함되어 있어 Git에 업로드되지 않습니다
+   - API 키가 설정되지 않으면 임시 Mock 데이터(22.5°C)가 표시됩니다
+   - 실제 서울 기온을 보려면 반드시 유효한 API 키를 설정해야 합니다
+
+### 8.2 환경변수 목록
+- `WEATHER_API_BASE`: OpenWeatherMap API 베이스 URL
+- `WEATHER_API_KEY`: OpenWeatherMap API 키 (필수)
+- `DEFAULT_LOCALE=ko`: 기본 언어 설정
+- `CACHE_TTL_SECONDS=600`: 캐시 유효 시간 (초)
 
 ## 9. 비기능 요구사항
 - **성능**: LCP < 2.5s(3G Fast 기준), 이미지 lazy, 아이콘 스프라이트/WebP.  
