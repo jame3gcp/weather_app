@@ -3,7 +3,6 @@ import { createCacheKey, memoryCache } from '@/lib/cache';
 import { envConfig } from '@/lib/env';
 
 // 환경 변수 (직접 파일 읽기 방식)
-const WEATHER_API_BASE = envConfig.WEATHER_API_BASE;
 const WEATHER_API_KEY = envConfig.WEATHER_API_KEY;
 const CACHE_TTL_SECONDS = envConfig.CACHE_TTL_SECONDS;
 

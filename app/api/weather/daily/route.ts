@@ -1,12 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCacheKey, memoryCache } from '@/lib/cache';
-import getConfig from 'next/config';
+import { envConfig } from '@/lib/env';
 
-// 환경 변수 (Next.js 15 호환 방식)
-const { serverRuntimeConfig } = getConfig() || {};
-const WEATHER_API_BASE = serverRuntimeConfig?.WEATHER_API_BASE || 'https://api.openweathermap.org/data/2.5';
-const WEATHER_API_KEY = serverRuntimeConfig?.WEATHER_API_KEY;
-const CACHE_TTL_SECONDS = parseInt(serverRuntimeConfig?.CACHE_TTL_SECONDS || '600', 10);
+// 환경 변수 (직접 파일 읽기 방식)
+const WEATHER_API_KEY = envConfig.WEATHER_API_KEY;
+const CACHE_TTL_SECONDS = envConfig.CACHE_TTL_SECONDS;
+
+interface DailyDataItem {
+  date: string;
+  min: number;
+  max: number;
+  temps: number[];
+  pops: number[];
+  icons: string[];
+  conditions: string[];
+  humidities: number[];
+}
+
+interface ForecastItem {
+  dt_txt: string;
+  main: {
+    temp: number;
+    humidity: number;
+  };
+  pop: number;
+  weather: Array<{
+    icon: string;
+    main: string;
+  }>;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -99,10 +121,10 @@ export async function GET(request: NextRequest) {
       const apiData = await apiResponse.json();
       
       // 3시간 간격 데이터를 일별로 그룹화하여 최고/최저 기온 계산
-      const dailyData: Record<string, any> = {};
-      const list = apiData.list || [];
+      const dailyData: Record<string, DailyDataItem> = {};
+      const list: ForecastItem[] = apiData.list || [];
       
-      list.forEach((item: any) => {
+      list.forEach((item: ForecastItem) => {
         const date = item.dt_txt.split(' ')[0]; // YYYY-MM-DD 형식
         const temp = item.main.temp;
         const pop = item.pop;
@@ -135,9 +157,9 @@ export async function GET(request: NextRequest) {
       
       // 일별 데이터를 배열로 변환하고 날짜순으로 정렬
       const transformedData = Object.values(dailyData)
-        .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .sort((a: DailyDataItem, b: DailyDataItem) => new Date(a.date).getTime() - new Date(b.date).getTime())
         .slice(0, validDays)
-        .map((day: any) => ({
+        .map((day: DailyDataItem) => ({
           date: day.date,
           min: day.min,
           max: day.max,

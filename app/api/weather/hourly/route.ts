@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCacheKey, memoryCache } from '@/lib/cache';
-import getConfig from 'next/config';
+import { envConfig } from '@/lib/env';
 
-// 환경 변수 (Next.js 15 호환 방식)
-const { serverRuntimeConfig } = getConfig() || {};
-const WEATHER_API_BASE = serverRuntimeConfig?.WEATHER_API_BASE || 'https://api.openweathermap.org/data/2.5';
-const WEATHER_API_KEY = serverRuntimeConfig?.WEATHER_API_KEY;
-const CACHE_TTL_SECONDS = parseInt(serverRuntimeConfig?.CACHE_TTL_SECONDS || '600', 10);
+// 환경 변수 (직접 파일 읽기 방식)
+const WEATHER_API_KEY = envConfig.WEATHER_API_KEY;
+const CACHE_TTL_SECONDS = envConfig.CACHE_TTL_SECONDS;
 
 export async function GET(request: NextRequest) {
   try {
