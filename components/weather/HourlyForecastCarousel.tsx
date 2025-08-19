@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { HourlyItem } from '@/types/weather.types';
 import { usePreferences } from '@/lib/stores/preferences';
-import { formatTemperature, formatProbability, formatTime, getWeatherIconUrl } from '@/lib/utils/format';
+import { formatTemperature, formatProbability, formatTime } from '@/lib/utils/format';
 
 interface HourlyForecastProps {
   lat: number;
@@ -129,18 +129,30 @@ export default function HourlyForecastCarousel({ lat, lon, hours = 24 }: HourlyF
     return iconMap[iconCode] || '🌡️';
   };
   
-  // 그래프용 데이터 준비
-  const labels = forecast.map((h) => formatTime(h.time, language));
-  const temps = forecast.map((h) => h.temp);
-  const pops = forecast.map((h) => Math.round(h.pop * 100));
+  // 데이터를 시간순으로 정렬하고 그래프용 데이터 준비
+  const sortedForecast = [...forecast].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  const labels = sortedForecast.map((h) => formatTime(h.time, language));
+  const temps = sortedForecast.map((h) => h.temp);
+  const pops = sortedForecast.map((h) => Math.round(h.pop * 100));
+  
+  // 온도 범위 계산 (더 넓은 범위로 설정)
   const maxTemp = Math.max(...temps);
   const minTemp = Math.min(...temps);
-  const tempRange = Math.max(1, maxTemp - minTemp);
-  const width = 680; // 여백 포함 넓이
-  const height = 220; // 전체 높이
-  const chartPad = 28; // 내부 패딩
+  const tempRange = Math.max(5, maxTemp - minTemp); // 최소 5도 범위 보장
+  
+  // 그래프 설정
+  const width = 680;
+  const height = 220;
+  const chartPad = 28;
   const chartW = width - chartPad * 2;
   const chartH = height - chartPad * 2;
+  
+  // X축 라벨을 균등하게 배치 (더 많은 라벨 표시)
+  const xLabels = labels.map((label, i) => ({
+    label,
+    x: chartPad + (i / (labels.length - 1)) * chartW,
+    show: i % 2 === 0 || i === labels.length - 1 // 2개마다 표시하되 마지막은 항상 표시
+  }));
   
   return (
     <Card>
@@ -207,6 +219,7 @@ export default function HourlyForecastCarousel({ lat, lon, hours = 24 }: HourlyF
                   })
                   .join(' ')}
               />
+              
               {/* 강수확률 선 */}
               <polyline
                 fill="none"
@@ -221,13 +234,13 @@ export default function HourlyForecastCarousel({ lat, lon, hours = 24 }: HourlyF
                   })
                   .join(' ')}
               />
-              {/* X 라벨 일부만 표시 */}
-              {labels.map((l, i) => {
-                const x = chartPad + (i / (labels.length - 1)) * chartW;
-                if (i % 3 !== 0) return null;
+              
+              {/* X축 라벨 (균등하게 배치) */}
+              {xLabels.map((item, i) => {
+                if (!item.show) return null;
                 return (
-                  <text key={i} x={x} y={height - 8} fontSize="10" textAnchor="middle" fill="#64748b">
-                    {l}
+                  <text key={i} x={item.x} y={height - 8} fontSize="10" textAnchor="middle" fill="#64748b">
+                    {item.label}
                   </text>
                 );
               })}
@@ -238,7 +251,7 @@ export default function HourlyForecastCarousel({ lat, lon, hours = 24 }: HourlyF
         {/* 카드식 상세 목록 (기존 UI 유지) */}
         <ScrollArea className="w-full whitespace-nowrap mt-4" aria-label="시간별 날씨 예보 슬라이더">
           <div className="flex w-max space-x-4 p-1" role="list">
-            {forecast.map((hour, index) => (
+            {sortedForecast.map((hour, index) => (
               <div
                 key={index}
                 className="flex flex-col items-center w-[80px] text-center"
