@@ -129,8 +129,30 @@ export default function HourlyForecastCarousel({ lat, lon, hours = 24 }: HourlyF
     return iconMap[iconCode] || '🌡️';
   };
   
-  // 데이터를 시간순으로 정렬하고 그래프용 데이터 준비
-  const sortedForecast = [...forecast].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  // 현재 시간 기준으로 미래 데이터만 필터링하고 정렬
+  const now = new Date();
+  const currentHour = now.getHours();
+  
+  // 현재 시간 이후의 데이터만 필터링 (정시 기준)
+  const futureForecast = forecast.filter(hour => {
+    const hourDate = new Date(hour.time);
+    const hourHour = hourDate.getHours();
+    const hourDay = hourDate.getDate();
+    const currentDay = now.getDate();
+    
+    // 같은 날이면 현재 시간 이후, 다른 날이면 모든 시간
+    if (hourDay === currentDay) {
+      return hourHour > currentHour;
+    } else if (hourDay > currentDay) {
+      return true;
+    }
+    return false;
+  });
+  
+  // 시간순으로 정렬
+  const sortedForecast = futureForecast.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  
+  // 그래프용 데이터 준비
   const labels = sortedForecast.map((h) => formatTime(h.time, language));
   const temps = sortedForecast.map((h) => h.temp);
   const pops = sortedForecast.map((h) => Math.round(h.pop * 100));
@@ -140,12 +162,32 @@ export default function HourlyForecastCarousel({ lat, lon, hours = 24 }: HourlyF
   const minTemp = Math.min(...temps);
   const tempRange = Math.max(5, maxTemp - minTemp); // 최소 5도 범위 보장
   
+  // 반응형 그래프 설정
+  const [graphWidth, setGraphWidth] = useState(680);
+  const [graphHeight, setGraphHeight] = useState(220);
+  
+  // 반응형 그래프 크기 조정
+  useEffect(() => {
+    const updateGraphSize = () => {
+      const container = document.querySelector('[data-graph-container]') as HTMLElement;
+      if (container) {
+        const containerWidth = container.offsetWidth;
+        const newWidth = Math.max(400, Math.min(containerWidth - 40, 800)); // 최소 400px, 최대 800px
+        const newHeight = Math.max(180, Math.min(newWidth * 0.3, 300)); // 비율 유지
+        setGraphWidth(newWidth);
+        setGraphHeight(newHeight);
+      }
+    };
+    
+    updateGraphSize();
+    window.addEventListener('resize', updateGraphSize);
+    return () => window.removeEventListener('resize', updateGraphSize);
+  }, []);
+  
   // 그래프 설정
-  const width = 680;
-  const height = 220;
   const chartPad = 28;
-  const chartW = width - chartPad * 2;
-  const chartH = height - chartPad * 2;
+  const chartW = graphWidth - chartPad * 2;
+  const chartH = graphHeight - chartPad * 2;
   
   // X축 라벨을 균등하게 배치 (더 많은 라벨 표시)
   const xLabels = labels.map((label, i) => ({
@@ -160,10 +202,10 @@ export default function HourlyForecastCarousel({ lat, lon, hours = 24 }: HourlyF
         <CardTitle>시간별 예보</CardTitle>
       </CardHeader>
       <CardContent>
-        {/* 간단한 꺾은선 그래프 (SVG) */}
-        <div className="w-full overflow-x-auto">
-          <div className="min-w-[680px]">
-            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-[220px]">
+        {/* 반응형 꺾은선 그래프 (SVG) */}
+        <div className="w-full overflow-x-auto" data-graph-container>
+          <div className="min-w-[400px]">
+            <svg viewBox={`0 0 ${graphWidth} ${graphHeight}`} className="w-full" style={{ height: `${graphHeight}px` }}>
               {/* 배경 그리드 */}
               {[0, 0.25, 0.5, 0.75, 1].map((r, i) => (
                 <line
@@ -239,7 +281,7 @@ export default function HourlyForecastCarousel({ lat, lon, hours = 24 }: HourlyF
               {xLabels.map((item, i) => {
                 if (!item.show) return null;
                 return (
-                  <text key={i} x={item.x} y={height - 8} fontSize="10" textAnchor="middle" fill="#64748b">
+                  <text key={i} x={item.x} y={graphHeight - 8} fontSize="10" textAnchor="middle" fill="#64748b">
                     {item.label}
                   </text>
                 );
