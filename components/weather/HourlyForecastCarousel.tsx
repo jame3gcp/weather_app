@@ -18,7 +18,27 @@ export default function HourlyForecastCarousel({ lat, lon, hours = 24 }: HourlyF
   const [forecast, setForecast] = useState<HourlyItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [graphWidth, setGraphWidth] = useState(680);
+  const [graphHeight, setGraphHeight] = useState(220);
   const { units, unitPreferences, language } = usePreferences();
+  
+  // 반응형 그래프 크기 조정
+  useEffect(() => {
+    const updateGraphSize = () => {
+      const container = document.querySelector('[data-graph-container]') as HTMLElement;
+      if (container) {
+        const containerWidth = container.offsetWidth;
+        const newWidth = Math.max(400, Math.min(containerWidth - 40, 800)); // 최소 400px, 최대 800px
+        const newHeight = Math.max(180, Math.min(newWidth * 0.3, 300)); // 비율 유지
+        setGraphWidth(newWidth);
+        setGraphHeight(newHeight);
+      }
+    };
+    
+    updateGraphSize();
+    window.addEventListener('resize', updateGraphSize);
+    return () => window.removeEventListener('resize', updateGraphSize);
+  }, []);
   
   // 시간별 예보 데이터 가져오기
   useEffect(() => {
@@ -161,28 +181,6 @@ export default function HourlyForecastCarousel({ lat, lon, hours = 24 }: HourlyF
   const maxTemp = Math.max(...temps);
   const minTemp = Math.min(...temps);
   const tempRange = Math.max(5, maxTemp - minTemp); // 최소 5도 범위 보장
-  
-  // 반응형 그래프 설정
-  const [graphWidth, setGraphWidth] = useState(680);
-  const [graphHeight, setGraphHeight] = useState(220);
-  
-  // 반응형 그래프 크기 조정
-  useEffect(() => {
-    const updateGraphSize = () => {
-      const container = document.querySelector('[data-graph-container]') as HTMLElement;
-      if (container) {
-        const containerWidth = container.offsetWidth;
-        const newWidth = Math.max(400, Math.min(containerWidth - 40, 800)); // 최소 400px, 최대 800px
-        const newHeight = Math.max(180, Math.min(newWidth * 0.3, 300)); // 비율 유지
-        setGraphWidth(newWidth);
-        setGraphHeight(newHeight);
-      }
-    };
-    
-    updateGraphSize();
-    window.addEventListener('resize', updateGraphSize);
-    return () => window.removeEventListener('resize', updateGraphSize);
-  }, []);
   
   // 그래프 설정
   const chartPad = 28;
